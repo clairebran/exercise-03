@@ -1,0 +1,125 @@
+---
+title: "EDA-challenge"
+author: "Claire Brandes"
+date: "2024-02-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r echo=FALSE}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/data-wrangling.csv"
+d <- readr::read_csv(f, col_names = TRUE)
+
+library(tidyverse)
+library(dplyr)
+library(readr)
+```
+
+#### Create a new variable names BSD (body size dimorphism) which is the ratio of average male to female body mass.
+```{r}
+d$BSD <- d$Body_mass_male_mean/d$Body_mass_female_mean
+```
+
+#### Create a new variable names sex_ratio, which is the ratio of the number of adult females to adult males in a typical group. 
+```{r}
+d$sex_ratio <- d$AdultFemale/d$AdultMales
+```
+
+#### Create a new variable names DI (for "defensibility index"), which is the ratio of day range length to the diameter of the home range.
+```{r}
+d$homerange_diamter <- 2 * sqrt(d$HomeRange_km2/pi)
+d$DI <- d$DayLength_km/d$homerange_diamter
+```
+
+#### Plot the relationship between day range length and time spent moving for these primate species overall and by family. Do species that spend more time moving travel farther overall? How about within any particular primate family? Should you transform either of these variables?
+
+Here I'm plotting the relationship between day range length and time spent moving for primate species overall, untransformed. The data lools skewed so I'm going to transform it using the log function.
+
+```{r}
+ggplot(data = d, aes(x = DayLength_km, y = Move)) + geom_point(na.rm = TRUE) + ylab("Time Spent Moving") + xlab("Day Range Length") + theme_classic()
+```
+
+Here I'm plotting the same thing as above, except on a log scale: 
+
+```{r}
+ggplot(data = d, aes(x = log(DayLength_km), y = log(Move))) + geom_point(na.rm = TRUE) + ylab("log(Time Spent Moving)") + xlab("log(Day Range Length)") + theme_classic()
+```
+
+Now I will plot the same graph as above, but color coded by family. 
+
+```{r}
+ggplot(data = d, aes(x = log(DayLength_km), y = log(Move))) + geom_point(aes(color = factor(Family)), na.rm = TRUE) + ylab("log(Time Spent Moving)") + xlab("log(Day Range Length)") + theme_classic()
+```
+
+Here I added regression lines for each family, which shows that, while species that spend more time moving don't travel farther overall, this does seems to be true for Atelidae, Cebidae, and Hylobatidae.
+
+```{r}
+ggplot(data = d, aes(x = log(DayLength_km), y = log(Move), color = Family)) + geom_point(na.rm = TRUE) + ylab("log(Time Spent Moving)") + xlab("log(Day Range Length)") + theme_classic() + geom_smooth(method = "lm", se = FALSE)
+```
+
+#### Plot the relationship between day range length and group size overall and by family. Do species that live in larger groups travel farther overall? How about within any particular primate family? Should you transform either of these variables?
+
+A basic plot of the relationship between day range length and group size overall:
+
+```{r}
+ggplot(data = d, aes(x = DayLength_km, y = MeanGroupSize)) + geom_point(na.rm = TRUE) + ylab("Mean Group Size") + xlab("Day Range Length") + theme_classic()
+```
+
+Again, the data looks skewed, so I'm going to transform it on a log scale. 
+
+```{r}
+ggplot(data = d, aes(x = log(DayLength_km), y = log(MeanGroupSize))) + geom_point(na.rm = TRUE) + ylab("log(Day Range Length)") + xlab("log(Mean Group Size)") + theme_classic()
+```
+
+Here is the same graph as above with the data points color coded by family. Here it looks like there is a positive relationship between group size and day range length overall, and within most primate families. Within some families there is a more positive relationship, like Cercopithecidae. The only exception to this is Hylobatidae, which exhibits a slight negative association between these variables. 
+
+```{r}
+ggplot(data = d, aes(x = log(DayLength_km), y = log(MeanGroupSize), color = Family)) + geom_point(na.rm = TRUE) + ylab("log(Day Range Length)") + xlab("log(Mean Group Size)") + theme_classic() + geom_smooth(method = "lm", se = FALSE)
+```
+
+#### Plot the relationship between body size dimorphism and canine size dimorphism overall and by family. Do taxa with grater size dimorphism also show greater canine dimorphism? 
+
+Here is a basic plot of body size dimorphism vs canine size dimorphism overall. It looks like there is a general positive association between body size and canine size dimorphism. 
+
+```{r}
+ggplot(data = d, aes(x = log(BSD), y = log(Canine_Dimorphism))) + geom_point(na.rm = TRUE) + ylab("log(Canine Size Dimorphism)") + xlab("log(Body Size Dimorphism)") + theme_classic()
+```
+
+When looking at these variables among different families, the relationship is less clear. A few families exhibit a negative association between body size and canine size dimorphism, and some show a positive relationship. 
+
+```{r}
+ggplot(data = d, aes(x = log(BSD), y = log(Canine_Dimorphism), color = Family)) + geom_point(na.rm = TRUE) + ylab("log(Canine Size Dimorphism)") + xlab("log(Body Size Dimorphism)") + theme_classic() + geom_smooth(method = "lm", se = FALSE)
+```
+
+#### Create a new variable named diet_strategy that is "frugivore" if fruits make up >50% of the diet, "folivore" if leaves make up >50% of the diet, and "omnivore" if neither of these is true. Then, do boxplots of group size for species with different dietary strategies. Do frugivores live in larger groups that folivores? 
+
+Create a new variable named diet_strategy: 
+
+```{r}
+diet_strategy <- d %>% 
+  select(Fruit, Leaves) %>%
+  mutate(diet_strategy = case_when(
+    Fruit >= 50 ~ "Frugivore",
+    Leaves >= 50 ~ "Folivore",
+    .default = "Omnivore"
+  ))
+diet_strategy
+```
+
+Here are boxplots of group size for species with different dietary strategies. It looks like frugivore group size is slightly more varied than folivore group size. Frugivores don't live in larger groups than folivores in all instances, but in many cases they do. This makes sense given larger group sizes would be beneficial for protecting patchily distributed resources, though groups that are too large mean there is more within-group competition for food. It's a tradeoff. 
+
+```{r}
+ggplot(data = d, aes(x = diet_strategy$diet_strategy, y = MeanGroupSize)) + geom_boxplot(na.rm = TRUE) + xlab("Diet Strategy") + ylab("Mean Group Size") + theme_classic()
+```
+
+#### In one line of code, using {dplyr} verbs and the forward pipe operator, do the following: add a variable, Binomial, to the data frame d, which is a concatenation of the Genus and Species; trim the data frame to only include the variables Binomial, Family, Brain_size_species_mean, and Body_mass_male_mean; group these variables by family; calculate the average value for Brain_size_species_mean and Body_mass_male_mean per Family; and rearrange by increasing average brain size. 
+
+```{r}
+d %>% mutate(Binomial = paste0(Genus, " ", Species)) %>% 
+  select(Binomial, Family, Brain_Size_Species_Mean, Body_mass_male_mean) %>% 
+  group_by(Family) %>% 
+  summarise(avg_brain_size = mean(Brain_Size_Species_Mean, na.rm = TRUE), avgM_body_mass = mean(Body_mass_male_mean, na.rm = TRUE)) %>%
+  arrange(avg_brain_size)
+```
